@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Taça Libertadores por Partículas — Fiel</title>
+  <title>Taça Libertadores em Partículas — Fiel</title>
   <style>
     body{margin:0;overflow:hidden;background:radial-gradient(circle at center,#070813 0%,#000 100%);font-family:Arial,sans-serif;color:#fff}
     #info{position:absolute;top:16px;left:16px;z-index:10;padding:8px 14px;border-radius:10px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.12);font-size:13px;letter-spacing:.5px;user-select:none}
@@ -10,12 +10,11 @@
 </head>
 <body>
 
-<!-- Three.js r128 (global) -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
 
 <script>
-/* ========= Setup ========= */
+/* ===== Setup ===== */
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 2000);
 camera.position.set(0, 2.2, 14);
@@ -34,7 +33,7 @@ const key = new THREE.PointLight(0xffffff, 1.2, 200);
 key.position.set(12, 14, 12);
 scene.add(key);
 
-/* ========= Utils ========= */
+/* ===== Utils ===== */
 const _vA=new THREE.Vector3(),_vB=new THREE.Vector3(),_vC=new THREE.Vector3();
 const _v1=new THREE.Vector3(),_v2=new THREE.Vector3(),_v3=new THREE.Vector3();
 
@@ -85,122 +84,140 @@ function pointsFrom(geometry,{count,color=0xffffff,size=0.06,opacity=0.9,matrix=
   });
   return new THREE.Points(g,m);
 }
-
 function trs({x=0,y=0,z=0,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1}){
   const mat=new THREE.Matrix4();
-  mat.compose(
-    new THREE.Vector3(x,y,z),
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)),
-    new THREE.Vector3(sx,sy,sz)
-  );
+  mat.compose(new THREE.Vector3(x,y,z),
+              new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)),
+              new THREE.Vector3(sx,sy,sz));
   return mat;
 }
 
-/* ========= Taça ========= */
+/* ===== Taça ===== */
 const trophy = new THREE.Group(); scene.add(trophy);
 const SILVER=0xeaf3ff, STEEL=0xbfd9ff, WOOD=0x6e3a24;
 
-/* --- Base (madeira ~35 cm; 9 colunas x 7 linhas de plaquetas) --- */
-const baseH = 2.6;              // proporcional (≈ 35 cm no “mundo” da cena)
-const baseR = 1.78;
-const baseGeo = new THREE.CylinderGeometry(baseR*0.97, baseR, baseH, 96, 1, true);
-trophy.add(pointsFrom(baseGeo,{count:5200,color:WOOD,size:0.06,matrix:trs({y:-2.6+baseH/2})}));
+/* --- Base tambor: corpo + rodapé + aros --- */
+const baseH = 2.8, baseR = 1.80;
+const baseGeo = new THREE.CylinderGeometry(baseR*0.985, baseR, baseH, 120, 1, true);
+trophy.add(pointsFrom(baseGeo,{count:5600,color:WOOD,size:0.06,matrix:trs({y:-2.6+baseH/2})}));
 
-// Aros metálicos (bordas + faixas horizontais)
-trophy.add(pointsFrom(new THREE.TorusGeometry(baseR*0.98,0.05,12,220),{count:900,color:STEEL,size:0.055,matrix:trs({y:-2.6+0.08})}));
-trophy.add(pointsFrom(new THREE.TorusGeometry(baseR*0.98,0.05,12,220),{count:900,color:STEEL,size:0.055,matrix:trs({y:-2.6+baseH-0.08})}));
+// rodapé mais largo
+const foot = new THREE.CylinderGeometry(baseR*1.06, baseR*1.12, 0.25, 96, 1, true);
+trophy.add(pointsFrom(foot,{count:1400,color:WOOD,size:0.06,matrix:trs({y:-2.6+0.12})}));
+
+// aros metálicos de borda
+trophy.add(pointsFrom(new THREE.TorusGeometry(baseR*0.99,0.05,12,260),{count:900,color:STEEL,size:0.055,matrix:trs({y:-2.6+0.1})}));
+trophy.add(pointsFrom(new THREE.TorusGeometry(baseR*0.99,0.05,12,260),{count:900,color:STEEL,size:0.055,matrix:trs({y:-2.6+baseH-0.1})}));
+
+// faixas horizontais (divisão das linhas de plaquetas)
 for(let i=1;i<=6;i++){
   const y = -2.6 + (i*baseH/7);
-  trophy.add(pointsFrom(new THREE.TorusGeometry(baseR*0.97,0.03,10,220),{count:600,color:STEEL,size:0.052,matrix:trs({y})}));
+  trophy.add(pointsFrom(new THREE.TorusGeometry(baseR*0.985,0.03,10,240),{count:600,color:STEEL,size:0.052,matrix:trs({y})}));
 }
 
-// Plaquetas (9 colunas x 7 linhas curvadas na base)
+// montantes verticais (9 colunas) — barras finas do topo ao fundo
 const cols=9, rows=7;
-const plaqueW=0.34, plaqueH=0.14, plaqueT=0.02, plaqueR=baseR*0.98;
+for(let c=0;c<cols;c++){
+  const ang = (c/cols)*Math.PI*2;
+  const bar = new THREE.CylinderGeometry(0.03,0.03,baseH-0.32, 8,1,true);
+  const mat = new THREE.Matrix4().multiply(trs({ry:ang})).multiply(trs({x:baseR*0.985,y:-2.6+baseH/2}));
+  trophy.add(pointsFrom(bar,{count:250,color:STEEL,size:0.05,matrix:mat}));
+}
+
+// plaquetas 9×7 (curvadas com ligeiro avanço)
+const plaqueW=0.34, plaqueH=0.145, plaqueT=0.02, plaqueR=baseR*0.985;
 for(let r=0;r<rows;r++){
   const y = -2.6 + 0.18 + r*((baseH-0.36)/(rows-1));
   for(let c=0;c<cols;c++){
-    const ang = (c/cols)*Math.PI*2;
+    const ang = (c/cols)*Math.PI*2 + 0.005*Math.sin(r*0.7); // leve variação
     const box = new THREE.BoxGeometry(plaqueW, plaqueH, plaqueT);
-    const mat = new THREE.Matrix4()
-      .multiply(trs({ry:ang}))
-      .multiply(trs({x:plaqueR,y}))
-    trophy.add(pointsFrom(box,{count:160,color:STEEL,size:0.05,matrix:mat}));
+    const mat = new THREE.Matrix4().multiply(trs({ry:ang})).multiply(trs({x:plaqueR,y}));
+    trophy.add(pointsFrom(box,{count:170,color:STEEL,size:0.05,matrix:mat}));
   }
 }
 
-/* --- Coluna prata afunilada --- */
-const columnGeo = new THREE.CylinderGeometry(1.02, 1.35, 0.85, 80, 1, true);
-trophy.add(pointsFrom(columnGeo,{count:1700,color:SILVER,size:0.058,matrix:trs({y:0.1})}));
+// rebordo superior metálico
+trophy.add(pointsFrom(new THREE.TorusGeometry(1.74, 0.055, 12, 260),{
+  count:1000,color:STEEL,size:0.055,matrix:trs({y: -0.15})
+}));
 
-/* --- “Gola” (colar) e pescoço --- */
-trophy.add(pointsFrom(new THREE.TorusGeometry(0.95, 0.045, 12, 220),{count:700,color:STEEL,size:0.055,matrix:trs({y:0.56})}));
-const neckGeo = new THREE.CylinderGeometry(0.78, 1.0, 0.55, 64, 1, true);
-trophy.add(pointsFrom(neckGeo,{count:1200,color:SILVER,size:0.056,matrix:trs({y:0.95})}));
+/* --- Coluna e gola --- */
+const columnGeo = new THREE.CylinderGeometry(1.05, 1.35, 0.85, 80, 1, true);
+trophy.add(pointsFrom(columnGeo,{count:1800,color:SILVER,size:0.058,matrix:trs({y:0.12})}));
 
-/* --- Pedestal/tulipa sob o globo (Lathe com perfil mais fiel) --- */
+trophy.add(pointsFrom(new THREE.TorusGeometry(0.98, 0.05, 12, 240),{
+  count:800,color:STEEL,size:0.055,matrix:trs({y:0.60})
+}));
+
+const neckGeo = new THREE.CylinderGeometry(0.78, 1.0, 0.56, 64, 1, true);
+trophy.add(pointsFrom(neckGeo,{count:1250,color:SILVER,size:0.056,matrix:trs({y:0.98})}));
+
+/* --- Tulipa/pedestal sob o globo (Lathe fiel) --- */
 const profile = [
-  new THREE.Vector2(0.62, 1.15),
-  new THREE.Vector2(0.85, 1.27),
-  new THREE.Vector2(1.12, 1.45),
-  new THREE.Vector2(1.05, 1.58),
-  new THREE.Vector2(0.92, 1.70),
-  new THREE.Vector2(0.74, 1.84),
+  new THREE.Vector2(0.62, 1.16),
+  new THREE.Vector2(0.86, 1.28),
+  new THREE.Vector2(1.14, 1.46),
+  new THREE.Vector2(1.07, 1.60),
+  new THREE.Vector2(0.93, 1.72),
+  new THREE.Vector2(0.74, 1.86),
 ];
-const latheGeo = new THREE.LatheGeometry(profile, 160);
-trophy.add(pointsFrom(latheGeo,{count:3000,color:SILVER,size:0.058}));
+const latheGeo = new THREE.LatheGeometry(profile, 180);
+trophy.add(pointsFrom(latheGeo,{count:3200,color:SILVER,size:0.058}));
 
-// Tampa/anel duplo
-trophy.add(pointsFrom(new THREE.TorusGeometry(0.98, 0.035, 12, 230),{count:700,color:STEEL,size:0.052,matrix:trs({y:1.86})}));
-trophy.add(pointsFrom(new THREE.CylinderGeometry(0.86,0.95,0.14,64,1,true),{count:700,color:SILVER,size:0.052,matrix:trs({y:1.95})}));
+trophy.add(pointsFrom(new THREE.TorusGeometry(0.99, 0.035, 12, 240),{
+  count:760,color:STEEL,size:0.052,matrix:trs({y:1.88})
+}));
+trophy.add(pointsFrom(new THREE.CylinderGeometry(0.86,0.95,0.14,64,1,true),{
+  count:760,color:SILVER,size:0.052,matrix:trs({y:1.97})
+}));
 
-/* --- Globo superior com cinturão e ALÇAS laterais --- */
-const globeR=1.27, globeY=1.95+globeR+0.02;
-trophy.add(pointsFrom(new THREE.SphereGeometry(globeR, 64, 64),{count:4200,color:SILVER,size:0.06,matrix:trs({y:globeY})}));
+/* --- Globo com cinturão e alças redesenhadas --- */
+const globeR=1.28, globeY=1.97+globeR+0.02;
+trophy.add(pointsFrom(new THREE.SphereGeometry(globeR, 72, 72),{
+  count:4600,color:SILVER,size:0.06,matrix:trs({y:globeY})
+}));
 
-// Cinturão no equador (faixa mais espessa)
-const belt = new THREE.CylinderGeometry(globeR*0.97, globeR*0.97, 0.20, 96, 1, true);
-trophy.add(pointsFrom(belt,{count:1400,color:STEEL,size:0.058,matrix:trs({y:globeY})}));
+// cinturão (faixa espessa)
+const belt = new THREE.CylinderGeometry(globeR*0.97, globeR*0.97, 0.22, 120, 1, true);
+trophy.add(pointsFrom(belt,{count:1600,color:STEEL,size:0.058,matrix:trs({y:globeY})}));
 
-// Alças (tubos curvados em ambos os lados)
-function handleCurve(side=1){ // side = +1 (direita) / -1 (esquerda)
-  const cx = side*(globeR+0.05), cy = globeY, cz = 0;
-  const h = 0.95, w = 0.75, out = globeR+0.65;
-  const pts = [];
-  for(let i=0;i<=32;i++){
-    const t=i/32;
-    const a = -Math.PI/2 + t*Math.PI; // de baixo p/ cima
-    const x = cx + (out - (globeR+0.05)) * Math.cos(a); // abre pra fora
-    const y = cy + (h/2)*Math.sin(a);
-    const z = cz + w*Math.sin(a*0.8);
-    pts.push(new THREE.Vector3(x,y,z));
-  }
+// alças com curva em S presas no cinturão
+function handleCurve(side=1){
+  const y0 = globeY;
+  const x0 = side*(globeR+0.03);
+  const pts = [
+    new THREE.Vector3(x0, y0-0.45, 0.00),
+    new THREE.Vector3(x0+side*0.30, y0-0.25, 0.18),
+    new THREE.Vector3(x0+side*0.40, y0+0.10, 0.12),
+    new THREE.Vector3(x0+side*0.28, y0+0.35, 0.00),
+    new THREE.Vector3(x0, y0+0.45, 0.00),
+  ];
   return new THREE.CatmullRomCurve3(pts,false,'catmullrom',0.0);
 }
 function addHandle(side){
-  const tube = new THREE.TubeGeometry(handleCurve(side), 160, 0.06, 14, false);
-  trophy.add(pointsFrom(tube,{count:1800,color:SILVER,size:0.055}));
-  // “Lugs” de fixação (pequenas bases)
+  const tube = new THREE.TubeGeometry(handleCurve(side), 160, 0.065, 16, false);
+  trophy.add(pointsFrom(tube,{count:1900,color:SILVER,size:0.055}));
   const lug = new THREE.CylinderGeometry(0.10,0.10,0.12,16,1,true);
-  const yUp = globeY+0.45, yDn = globeY-0.45;
-  const matUp = trs({x:side*(globeR+0.02), y:yUp});
-  const matDn = trs({x:side*(globeR+0.02), y:yDn});
-  trophy.add(pointsFrom(lug,{count:120,color:SILVER,size:0.052,matrix:matUp}));
-  trophy.add(pointsFrom(lug,{count:120,color:SILVER,size:0.052,matrix:matDn}));
+  trophy.add(pointsFrom(lug,{count:130,color:SILVER,size:0.052,matrix:trs({x:side*(globeR+0.02), y:globeY+0.45})}));
+  trophy.add(pointsFrom(lug,{count:130,color:SILVER,size:0.052,matrix:trs({x:side*(globeR+0.02), y:globeY-0.45})}));
 }
-addHandle(+1);
-addHandle(-1);
+addHandle(+1); addHandle(-1);
 
 /* --- Mini-estátua no topo (simplificada) --- */
-const topY = globeY + globeR + 0.6;
-trophy.add(pointsFrom(new THREE.CylinderGeometry(0.085,0.085,0.55,24,1,true),{count:520,color:SILVER,size:0.048,matrix:trs({y:topY})}));
-trophy.add(pointsFrom(new THREE.SphereGeometry(0.12,24,24),{count:320,color:SILVER,size:0.047,matrix:trs({y:topY+0.35})}));
-// Braço + bola
+const topY = globeY + globeR + 0.60;
+trophy.add(pointsFrom(new THREE.CylinderGeometry(0.085,0.085,0.56,24,1,true),{
+  count:540,color:SILVER,size:0.048,matrix:trs({y:topY})
+}));
+trophy.add(pointsFrom(new THREE.SphereGeometry(0.12,24,24),{
+  count:330,color:SILVER,size:0.047,matrix:trs({y:topY+0.35})
+}));
 const arm = new THREE.CylinderGeometry(0.05,0.05,0.5,16,1,true); arm.rotateZ(Math.PI/2);
-trophy.add(pointsFrom(arm,{count:340,color:SILVER,size:0.047,matrix:trs({y:topY+0.18,x:0.12})}));
-trophy.add(pointsFrom(new THREE.SphereGeometry(0.10,20,20),{count:230,color:SILVER,size:0.045,matrix:trs({y:topY+0.18,x:0.40})}));
+trophy.add(pointsFrom(arm,{count:360,color:SILVER,size:0.047,matrix:trs({y:topY+0.18,x:0.12})}));
+trophy.add(pointsFrom(new THREE.SphereGeometry(0.10,20,20),{
+  count:240,color:SILVER,size:0.045,matrix:trs({y:topY+0.18,x:0.40})
+}));
 
-/* --- Ambiente discreto --- */
+/* --- Ambiente suave --- */
 const stars=(()=>{
   const g=new THREE.BufferGeometry(); const N=1200; const p=new Float32Array(N*3);
   for(let i=0;i<N;i++){
@@ -212,14 +229,14 @@ const stars=(()=>{
   const pts=new THREE.Points(g,m); scene.add(pts); return pts;
 })();
 
-/* ========= Animação ========= */
+/* ===== Animação ===== */
 const clock=new THREE.Clock();
 trophy.children.forEach(o=>{ if(o.isPoints) o.material.sizeBase=o.material.size; });
 
 function animate(){
   requestAnimationFrame(animate);
   const t=clock.getElapsedTime();
-  trophy.rotation.y += 0.0018;
+  trophy.rotation.y += 0.0017;
   trophy.children.forEach(o=>{
     if(o.isPoints && o.material && o.material.sizeBase){
       o.material.size = o.material.sizeBase * (1 + Math.sin(t*2 + o.id)*0.02);
