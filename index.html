@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Taça 3D por Partículas — Three.js</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: radial-gradient(circle at center, #070813 0%, #000 100%);
+      font-family: Arial, sans-serif; color: #fff;
+    }
+    #info{
+      position:absolute; top:16px; left:16px; z-index:10;
+      padding:8px 14px; border-radius:10px;
+      background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.12);
+      font-size:13px; letter-spacing:.5px; user-select:none;
+    }
+  </style>
+</head>
+<body>
+  <div id="info">🏆 Taça 3D (partículas) — arraste para girar, rolagem = zoom</div>
+
+  <!-- Three.js r128 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <script>
+    // ========= Setup =========
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 2000);
+    camera.position.set(0, 2.2, 14);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+    const key = new THREE.PointLight(0xffffff, 1.2, 200);
+    key.position.set(12, 14, 12);
+    scene.add(key);
+
+    // ========= Utils =========
+    const _vA = new THREE.Vector3(), _vB = new THREE.Vector3(), _vC = new THREE.Vector3();
+    const _v1 = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
+
+    // Amostrar a superfície de um BufferGeometry (proporcional à área dos triângulos)
+    function sampleSurface(geometry, count, matrix) {
+      const geo = geometry.index ? geometry.toNonIndexed() : geometry.clone();
+      const pos = geo.getAttribute('position');
+      const tris = pos.count / 3;
+
+      const areas = new Float32Array(tris);
+      let total = 0;
+      for (let i=0;i<tris;i++){
+        _vA.fromBufferAttribute(pos, i*3+0);
+        _vB.fromBufferAttribute(pos, i*3+1);
+        _vC.fromBufferAttribute(pos, i*3+2);
+        _v1.subVectors(_vB, _vA);
+        _v2.subVectors(_vC, _vA);
+        const area = _v1.cross(_v2).length()*0.5;
+        areas[i] = area; total += area;
+      }
+      for (let i=1;i<tris;i++) areas[i]+=areas[i-1];
+
+      const out = new Float32Array(count*3);
+      for (let i=0;i<count;i++){
+        const r = Math.random()*total;
+        let lo=0, hi=tris-1;
+        while(lo<hi){ const mid=(lo+hi)>>1; (r<=areas[mid]) ? hi=mid : lo=mid+1; }
+        const t = lo;
+
+        _vA.fromBufferAttribute(pos, t*3+0);
+        _vB.fromBufferAttribute(pos, t*3+1);
+        _vC.fromBufferAttribute(pos, t*3+2);
+
+        let u=Math.random(), v=Math.random();
+        if(u+v>1){ u=1-u; v=1-v; }
+
+        _v1.copy(_vB).sub(_vA).multiplyScalar(u);
+        _v2.copy(_vC).sub(_vA).multiplyScalar(v);
+        _v3.copy(_vA).add(_v1).add(_v2);
+        if(matrix) _v3.applyMatrix4(matrix);
+
+        out[i*3]=_v3.x; out[i*3+1]=_v3.y; out[i*3+2]=_v3.z;
+      }
+      return out;
+    }
+
+    const tex = new THREE.TextureLoader().load('https://threejs.org/examples/textures/sprites/circle.png');
+
+    function pointsFrom(geometry, {count, color=0xffffff, size=0.06, opacity=0.9, matrix=null}){
+      const positions = sampleSurface(geometry, count, matrix);
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(positions,3));
+      const m = new THREE.PointsMaterial({
+        map: tex, color, size,
+        transparent:true, opacity,
+        depthWrite:false, sizeAttenuation:true,
+        blending: THREE.AdditiveBlending
+      });
+      return new THREE.Points(g,m);
+    }
+
+    function trs({x=0,y=0,z=0, rx=0,ry=0,rz=0, sx=1,sy=1,sz=1}){
+      const mat = new THREE.Matrix4();
+      mat.compose(
+        new THREE.Vector3(x,y,z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rx,ry,rz)),
+        new THREE.Vector3(sx,sy,sz)
+      ); return mat;
+    }
+
+    // ========= Taça (proporções mais fiéis) =========
+    const trophy = new THREE.Group(); scene.add(trophy);
+
+    const SILVER = 0xeaf3ff, STEEL=0xbfd9ff, WOOD=0x6e3a24;
+
+    // 1) Base "tambor" alto com faixas/plaqueamento
+    const baseH = 2.4, baseRtop=1.75, baseRbot=1.85;
+    const baseGeo = new THREE.CylinderGeometry(baseRtop, baseRbot, baseH, 72, 1, true);
+    trophy.add(pointsFrom(baseGeo, {count:4200, color:WOOD, size:0.06, matrix: trs({y:-2.6+baseH/2})}));
+    // Aros metálicos (faixas horizontais)
+    for(let i=0;i<8;i++){
+      const y = -2.6 + 0.2 + (i*(baseH-0.4)/7);
+      const ring = new THREE.TorusGeometry(1.8, 0.035, 10, 200);
+      trophy.add(pointsFrom(ring,{count:650,color:STEEL,size:0.055,matrix:trs({y})}));
+    }
+    // Rebordo superior metálico
+    trophy.add(pointsFrom(new THREE.TorusGeometry(1.74, 0.05, 12, 220),{
+      count:900,color:STEEL,size:0.055,matrix:trs({y:-0.2})
+    }));
+
+    // 2) Coluna afunilada
+    const columnGeo = new THREE.CylinderGeometry(1.0, 1.35, 0.8, 64, 1, true);
+    trophy.add(pointsFrom(columnGeo,{count:1500,color:SILVER,size:0.058,matrix:trs({y:0.25})}));
+
+    // 3) “Vira” estreita + anel metálico
+    const neckGeo = new THREE.CylinderGeometry(0.75, 1.0, 0.5, 48, 1, true);
+    trophy.add(pointsFrom(neckGeo,{count:1100,color:SILVER,size:0.056,matrix:trs({y:0.8})}));
+    trophy.add(pointsFrom(new THREE.TorusGeometry(0.82, 0.035, 10, 200),{
+      count:600,color:STEEL,size:0.052,matrix:trs({y:1.08})
+    }));
+
+    // 4) “Taça/pedestal” sob o globo (Lathe para a silhueta correta)
+    // Perfil (raio x altura) — desenhado para lembrar o contorno real
+    const profile = [
+      new THREE.Vector2(0.60, 1.10), // pescoço
+      new THREE.Vector2(0.80, 1.25),
+      new THREE.Vector2(1.10, 1.45),
+      new THREE.Vector2(1.05, 1.55),
+      new THREE.Vector2(0.90, 1.65),
+      new THREE.Vector2(0.70, 1.78), // quase encosta no globo
+    ];
+    const latheGeo = new THREE.LatheGeometry(profile, 128);
+    trophy.add(pointsFrom(latheGeo,{count:2600,color:SILVER,size:0.058}));
+
+    // 5) Tampa/duplo aro sob o globo
+    trophy.add(pointsFrom(new THREE.TorusGeometry(0.95, 0.03, 10, 220),{
+      count:600,color:STEEL,size:0.052,matrix:trs({y:1.82})
+    }));
+    trophy.add(pointsFrom(new THREE.CylinderGeometry(0.82,0.90,0.14,48,1,true),{
+      count:600,color:SILVER,size:0.052,matrix:trs({y:1.9})
+    }));
+
+    // 6) Globo grande
+    const globeR = 1.25;
+    trophy.add(pointsFrom(new THREE.SphereGeometry(globeR, 64, 64),{
+      count:3800,color:SILVER,size:0.06,matrix:trs({y:1.9+globeR+0.05})
+    }));
+    // Aro do globo
+    trophy.add(pointsFrom(new THREE.TorusGeometry(globeR, 0.035, 12, 260),{
+      count:900,color:STEEL,size:0.055,matrix:trs({y:1.9+globeR+0.05})
+    }));
+
+    // 7) Mini-estátua simplificada no topo (haste + cabeça + “braço” + bola)
+    const topY = 1.9 + globeR + 0.05 + 1.35;
+    trophy.add(pointsFrom(new THREE.CylinderGeometry(0.08,0.08,0.55,24,1,true),{
+      count:500,color:SILVER,size:0.048,matrix:trs({y:topY})
+    }));
+    trophy.add(pointsFrom(new THREE.SphereGeometry(0.12,24,24),{
+      count:300,color:SILVER,size:0.047,matrix:trs({y:topY+0.35})
+    }));
+    // braço (cilindro deitado)
+    const arm = new THREE.CylinderGeometry(0.05,0.05,0.45,16,1,true);
+    arm.rotateZ(Math.PI/2);
+    trophy.add(pointsFrom(arm,{count:320,color:SILVER,size:0.047,matrix:trs({y:topY+0.18, x:0.12})}));
+    // bola
+    trophy.add(pointsFrom(new THREE.SphereGeometry(0.10,20,20),{
+      count:220,color:SILVER,size:0.045,matrix:trs({y:topY+0.18, x:0.38})
+    }));
+
+    // ========= Partículas de ambiente discretas =========
+    const stars = (() => {
+      const g = new THREE.BufferGeometry();
+      const N = 1200; const p = new Float32Array(N*3);
+      for(let i=0;i<N;i++){
+        const r = 60 + Math.random()*45;
+        const th = Math.random()*Math.PI*2;
+        const ph = Math.acos(2*Math.random()-1);
+        p[i*3]   = r*Math.sin(ph)*Math.cos(th);
+        p[i*3+1] = r*Math.sin(ph)*Math.sin(th);
+        p[i*3+2] = r*Math.cos(ph);
+      }
+      g.setAttribute('position', new THREE.BufferAttribute(p,3));
+      const m = new THREE.PointsMaterial({
+        map: tex, size:.55, color:0x9ecbff, transparent:true, opacity:.3,
+        depthWrite:false, sizeAttenuation:true, blending:THREE.AdditiveBlending
+      });
+      const pts = new THREE.Points(g,m); scene.add(pts); return pts;
+    })();
+
+    // ========= Animação =========
+    const clock = new THREE.Clock();
+    function animate(){
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      // giro suave e "shimmer" (respiração do tamanho das partículas)
+      trophy.rotation.y += 0.0019;
+      trophy.children.forEach(obj=>{
+        if(obj.isPoints && obj.material && obj.material.size){
+          obj.material.size = (obj.material.sizeBase ?? obj.material.size) * (1 + Math.sin(t*2 + obj.id)*0.02);
+        }
+      });
+
+      stars.rotation.y += 0.00035;
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    // Guardar tamanho base pra shimmer
+    trophy.children.forEach(o=>{ if(o.isPoints) o.material.sizeBase = o.material.size; });
+    animate();
+
+    // ========= Resize =========
+    addEventListener('resize', ()=>{
+      camera.aspect = innerWidth/innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>
